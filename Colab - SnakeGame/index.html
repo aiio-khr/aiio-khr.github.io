@@ -1,0 +1,374 @@
+<style>
+    html, body {
+        min-height: 100%;
+        background-color: #161616;
+    }
+
+    body {
+        margin: 0;
+        padding: 20px 0;
+    }
+</style>
+
+<div id="snake-game-container" style="text-align: center; font-family: sans-serif; background-color: #222; color: #fff; padding: 20px; border-radius: 10px; width: 340px; margin: 0 auto;">
+    <h3 style="margin-top: 0; color: #4CAF50;">🐍 超爆速ロード・ヘビゲーム</h3>
+    <div style="font-size: 18px; margin-bottom: 10px;">スコア: <span id="js-score">0</span></div>
+    <canvas id="gameCanvas" width="300" height="300" style="border: 2px solid #555; background-color: #111; display: block; margin: 0 auto;"></canvas>
+
+    <!-- アップグレードボタン（最初は非表示） -->
+    <div style="margin-top: 10px;">
+        <button id="upgradeBtn" style="padding: 8px 15px; font-size: 14px; background-color: #f1c40f; color: #111; border: none; border-radius: 5px; cursor: pointer; display: none; font-weight: bold; width: 100%;">食べ物を強化 (スコア?消費)</button>
+    </div>
+
+    <div style="margin-top: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <button id="startBtn" style="padding: 8px 15px; font-size: 14px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">開始 / リセット</button>
+        <span style="font-size: 13px;">サイズ: <span id="gridSizeVal">15</span> (<span id="speedVal">130</span> ms)</span>
+    </div>
+    <div style="margin-top: 10px;">
+        <input type="range" id="gridsize_html" min="5" max="30" value="15" style="width: 100%;"></input>
+    </div>
+    <div id="food-info" style="margin-top: 10px; font-size: 12px; color: #aaa;">
+        赤エサ: 1点 | 黄エサ(レア): 10点!
+    </div>
+    <!-- ランキング表示エリア -->
+    <div style="margin-top: 15px; text-align: left; background: #333; padding: 10px; border-radius: 5px;">
+        <h4 style="margin: 0 0 5px 0; color: #f1c40f; text-align: center;">🏆 スコアランキング (Top 5)</h4>
+        <ol id="rankingList" style="margin: 0; padding-left: 20px; font-size: 13px; color: #eee;"></ol>
+    </div>
+</div>
+
+<script>
+(function() {
+    if (window.currentSnakeInterval) {
+        clearInterval(window.currentSnakeInterval);
+    }
+    if (window.snakeKeyHandler) {
+        document.removeEventListener('keydown', window.snakeKeyHandler);
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('js-score');
+    const startBtn = document.getElementById('startBtn');
+    const upgradeBtn = document.getElementById('upgradeBtn');
+    const foodInfo = document.getElementById('food-info');
+    const slider = document.getElementById('gridsize_html');
+    const sliderValDisplay = document.getElementById('gridSizeVal');
+    const speedValDisplay = document.getElementById('speedVal');
+    const rankingList = document.getElementById('rankingList');
+
+    let tileCount = parseInt(slider.value);
+    let gridSize = canvas.width / tileCount;
+    let snake = [];
+    let food = {x: 0, y: 0, isGolden: false};
+    let dx = 0;
+    let dy = -1;
+    let score = 0;
+    let isRunning = false;
+    let gameSpeed = 130;
+    let flashState = true;
+    let randomscore = 0;
+
+    // 初期状態はオブジェクトにする（配列ではなく）
+    let isFoodUpgraded = {Diamond: false, Emerald: false, Ruby: false, Sapphire: false, what: false};
+
+    let flashInterval = setInterval(() => { flashState = !flashState; }, 150);
+
+    function calculateSpeed(tiles) {
+        let ratio = (tiles - 5) / (30 - 5);
+        let speed = 220 - (ratio * 150);
+        return Math.round(speed);
+    }
+
+    function loadAndShowRanking() {
+        let rankings = JSON.parse(localStorage.getItem('snake_game_rankings')) || [];
+        rankingList.innerHTML = '';
+        if (rankings.length === 0) {
+            rankingList.innerHTML = '<li style="list-style: none; text-align: center; color: #999;">記録なし</li>';
+            return;
+        }
+        rankings.forEach((r, idx) => {
+            const li = document.createElement('li');
+            li.innerHTML = `<b>${idx + 1}位:</b> ${r.score} 点 <span style="font-size:10px; color:#aaa;">(${r.date})</span>`;
+            rankingList.appendChild(li);
+        });
+    }
+
+    function saveScore(finalScore) {
+        if (finalScore === 0) return;
+        let rankings = JSON.parse(localStorage.getItem('snake_game_rankings')) || [];
+        const now = new Date();
+        const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+
+        rankings.push({ score: finalScore, date: dateStr });
+        rankings.sort((a, b) => b.score - a.score);
+        rankings = rankings.slice(0, 5);
+
+        localStorage.setItem('snake_game_rankings', JSON.stringify(rankings));
+        loadAndShowRanking();
+    }
+
+    function initGame() {
+        const center = Math.floor(tileCount / 2);
+        snake = [
+            {x: center, y: center - 1},
+            {x: center, y: center},
+            {x: center, y: center + 1}
+        ];
+        dx = 0;
+        dy = -1;
+        score = 0;
+        scoreEl.innerText = score;
+        let randomscore = 0;
+
+        // ゲームリセット時にアップグレードをすべて初期化
+        isFoodUpgraded = {Diamond: false, Emerald: false, Ruby: false, Sapphire: false, what: false};
+
+        upgradeBtn.style.display = 'none';
+        foodInfo.innerHTML = '赤エサ: 1点 | 黄エサ(5%): 10点!';
+        gameSpeed = calculateSpeed(tileCount);
+        speedValDisplay.innerText = gameSpeed;
+        placeFood();
+        draw();
+    }
+
+    function placeFood() {
+        food.x = Math.floor(Math.random() * tileCount);
+        food.y = Math.floor(Math.random() * tileCount);
+        food.isGolden = Math.random() < 0.05; // レアエサの確率を少しアップ(5%)
+
+        for (let cell of snake) {
+            if (cell.x === food.x && cell.y === food.y) {
+                placeFood();
+                break;
+            }
+        }
+    }
+
+    // アップグレードボタンのクリックイベント
+    upgradeBtn.addEventListener('click', () => {
+        if (score >= 5 && !isFoodUpgraded.Diamond) {
+            score -= 5;
+            scoreEl.innerText = score;
+            isFoodUpgraded.Diamond = true;
+            upgradeBtn.style.display = 'none';
+            foodInfo.innerHTML = 'ダイヤエサ: 2点 | 黄エサ(5%): 10点!';
+        } else if (score >= 10 && isFoodUpgraded.Diamond && !isFoodUpgraded.Emerald) {
+            score -= 10;
+            scoreEl.innerText = score;
+            isFoodUpgraded.Emerald = true;
+            upgradeBtn.style.display = 'none';
+            foodInfo.innerHTML = 'エメラルドエサ: 4点 | 黄エサ(5%): 10点!';
+        } else if (score >= 15 && isFoodUpgraded.Emerald && !isFoodUpgraded.Ruby) {
+            score -= 15;
+            scoreEl.innerText = score;
+            isFoodUpgraded.Ruby = true;
+            upgradeBtn.style.display = 'none';
+            foodInfo.innerHTML = 'ルビーエサ: 6点 | 黄エサ(5%): 10点!';
+        } else if (score >= 20 && isFoodUpgraded.Ruby && !isFoodUpgraded.Sapphire) {
+            score -= 20;
+            scoreEl.innerText = score;
+            isFoodUpgraded.Sapphire = true;
+            upgradeBtn.style.display = 'none';
+            foodInfo.innerHTML = 'サファイアエサ: 8点 | 黄エサ(5%): 10点!';
+        } else if (score >= 50 && isFoodUpgraded.Sapphire && !isFoodUpgraded.what) {
+            score -= 50;
+            scoreEl.innerText = score;
+            isFoodUpgraded.what = true;
+            upgradeBtn.style.display = 'none';
+            foodInfo.innerHTML = '???エサ: ???点';
+        }
+        updateUpgradeButton();
+        draw();
+    });
+
+    function updateUpgradeButton() {
+        if (!isFoodUpgraded.Diamond) {
+            upgradeBtn.innerText = 'ダイヤに強化 (スコア5消費)';
+            upgradeBtn.style.display = score >= 5 ? 'block' : 'none';
+        } else if (!isFoodUpgraded.Emerald) {
+            upgradeBtn.innerText = 'エメラルドに強化 (スコア10消費)';
+            upgradeBtn.style.display = score >= 10 ? 'block' : 'none';
+        } else if (!isFoodUpgraded.Ruby) {
+            upgradeBtn.innerText = 'ルビーに強化 (スコア15消費)';
+            upgradeBtn.style.display = score >= 15 ? 'block' : 'none';
+        } else if (!isFoodUpgraded.Sapphire) {
+            upgradeBtn.innerText = 'サファイアに強化 (スコア20消費)';
+            upgradeBtn.style.display = score >= 20 ? 'block' : 'none';
+        } else if (!isFoodUpgraded.what) {
+            upgradeBtn.innerText = '???に強化 (スコア50消費)';
+            upgradeBtn.style.display = score >= 50 ? 'block' : 'none';
+        } else {
+            upgradeBtn.style.display = 'none';
+        }
+    }
+
+    function gameStep() {
+        const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+
+        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            gameOver();
+            return;
+        }
+
+        for (let cell of snake) {
+            if (head.x === cell.x && head.y === cell.y) {
+                gameOver();
+                return;
+            }
+        }
+
+        snake.unshift(head);
+
+        if (head.x === food.x && head.y === food.y) {
+            if (food.isGolden) {
+                score += 10;
+            } else if (isFoodUpgraded.what) {
+                score += randomscore;
+                randomscore = 100 * Math.random();
+                foodInfo.innerHTML = 'ランダムエサ: ' + randomscore + '点';
+            } else if (isFoodUpgraded.Sapphire) {
+                score += 8;
+            } else if (isFoodUpgraded.Ruby) {
+                score += 6;
+            } else if (isFoodUpgraded.Emerald) {
+                score += 4;
+            } else if (isFoodUpgraded.Diamond) {
+                score += 2;
+            } else {
+                score++;
+            }
+            scoreEl.innerText = score;
+            placeFood();
+        } else {
+            snake.pop;
+            snake.pop();
+        }
+
+        updateUpgradeButton();
+        draw();
+    }
+
+    function draw() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.strokeStyle = '#222';
+        for(let i=0; i<tileCount; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i*gridSize, 0);
+            ctx.lineTo(i*gridSize, canvas.height);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(0, i*gridSize);
+            ctx.lineTo(canvas.width, i*gridSize);
+            ctx.stroke();
+        }
+
+        if (food.isGolden) {
+            ctx.fillStyle = flashState ? '#f1c40f' : '#f39c12';
+            ctx.shadowColor = '#f1c40f';
+            ctx.shadowBlur = 6;
+        } else if (isFoodUpgraded.what) {
+            ctx.fillStyle = '#f1c40f';
+            ctx.shadowColor = '#f1c40f';
+            ctx.shadowBlur = 6;
+        } else if (isFoodUpgraded.Sapphire) {
+            ctx.fillStyle = '#2980b9'; // サファイア色 (青)
+            ctx.shadowColor = '#2980b9';
+            ctx.shadowBlur = 5;
+        } else if (isFoodUpgraded.Ruby) {
+            ctx.fillStyle = '#c0392b'; // ルビー色 (赤)
+            ctx.shadowColor = '#c0392b';
+            ctx.shadowBlur = 5;
+        } else if (isFoodUpgraded.Emerald) {
+            ctx.fillStyle = '#27ae60'; // エメラルド色 (緑)
+            ctx.shadowColor = '#27ae60';
+            ctx.shadowBlur = 5;
+        } else if (isFoodUpgraded.Diamond) {
+            ctx.fillStyle = '#00d2fc'; // ダイヤ色 (水色)
+            ctx.shadowColor = '#00d2fc';
+            ctx.shadowBlur = 5;
+        } else {
+            ctx.fillStyle = '#ff4d4d'; // 通常 (赤)
+            ctx.shadowColor = '#ff4d4d';
+            ctx.shadowBlur = 4;
+        }
+        ctx.fillRect(food.x * gridSize + 1, food.y * gridSize + 1, gridSize - 2, gridSize - 2);
+        ctx.shadowBlur = 0;
+
+        snake.forEach((part, index) => {
+            ctx.fillStyle = index === 0 ? '#2ecc71' : '#27ae60';
+            ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+        });
+    }
+
+    function gameOver() {
+        clearInterval(window.currentSnakeInterval);
+        isRunning = false;
+        const center = Math.floor(tileCount / 2);
+        snake = [
+            {x: center, y: center - 1},
+            {x: center, y: center},
+            {x: center, y: center + 1}
+        ];
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff4d4d';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('ゲームオーバー！', canvas.width/2, canvas.height/2);
+        startBtn.innerText = "開始 / リセット";
+
+        saveScore(score);
+    }
+
+    function startGameLoop() {
+        if (window.currentSnakeInterval) {
+            clearInterval(window.currentSnakeInterval);
+        }
+        window.currentSnakeInterval = setInterval(gameStep, gameSpeed);
+    }
+
+    startBtn.addEventListener('click', () => {
+        if (isRunning) {
+            clearInterval(window.currentSnakeInterval);
+            isRunning = false;
+            startBtn.innerText = "再開";
+        } else {
+            if (snake.length === 0 || (scoreEl.innerText === "0" && !isRunning)) {
+                initGame();
+            }
+            isRunning = true;
+            startBtn.innerText = "一時停止";
+            startGameLoop();
+        }
+    });
+
+    slider.addEventListener('input', (e) => {
+        if (isRunning) {
+            clearInterval(window.currentSnakeInterval);
+            isRunning = false;
+            startBtn.innerText = "開始 / リセット";
+        }
+        tileCount = parseInt(e.target.value);
+        sliderValDisplay.innerText = tileCount;
+        gridSize = canvas.width / tileCount;
+        initGame();
+    });
+
+    window.snakeKeyHandler = function(e) {
+        if (!isRunning) return;
+        const key = e.key.toLowerCase();
+        if ((key === 'arrowup' || key === 'w') && dy === 0) { dx = 0; dy = -1; e.preventDefault(); }
+        else if ((key === 'arrowdown' || key === 's') && dy === 0) { dx = 0; dy = 1; e.preventDefault(); }
+        else if ((key === 'arrowleft' || key === 'a') && dx === 0) { dx = -1; dy = 0; e.preventDefault(); }
+        else if ((key === 'arrowright' || key === 'd') && dx === 0) { dx = 1; dy = 0; e.preventDefault(); }
+    };
+
+    document.addEventListener('keydown', window.snakeKeyHandler);
+
+    initGame();
+    loadAndShowRanking();
+})();
+</script>
