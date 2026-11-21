@@ -268,9 +268,8 @@ async function uploadFile() {
 
   uploadButton.disabled = true;
   fileStatus.textContent = "アップロード中...";
-  const safeName = file.name.replace(/[\\/]/g, "_").replace(/[^\p{L}\p{N}._() -]/gu, "_");
+  const safeName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g, "_");
   const objectPath = `${Date.now()}_${crypto.randomUUID()}_${safeName}`;
-
   const { error } = await supabase.storage
     .from(bucketName)
     .upload(objectPath, file, { cacheControl: "3600", upsert: false });
