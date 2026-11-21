@@ -1,320 +1,324 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Text Share</title>
-
 <style>
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    padding: 25px;
-    background: #f1f3f5;
-    font-family: sans-serif;
-}
-
-.container {
-    max-width: 750px;
-    margin: 40px auto;
-    padding: 25px;
-    background: white;
-    border-radius: 14px;
-    box-shadow: 0 3px 15px #0001;
-}
-
-h1 {
-    margin-top: 0;
-    font-size: 25px;
-}
-
-textarea {
-    width: 100%;
-    height: 350px;
-    padding: 15px;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    resize: vertical;
-    font-size: 16px;
-    line-height: 1.6;
-    font-family: sans-serif;
-}
-
-#status {
-    margin-top: 12px;
-    color: #666;
-    font-size: 14px;
-}
-
-input {
-    width: 100%;
-    padding: 12px;
-    margin: 7px 0;
-    border: 1px solid #ccc;
-    border-radius: 7px;
-    font-size: 16px;
-}
-
-button {
-    padding: 11px 20px;
-    border: none;
-    border-radius: 7px;
-    background: #2563eb;
-    color: white;
-    font-size: 15px;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #1d4ed8;
-}
-
-#logout {
-    background: #666;
-}
-
-.hidden {
-    display: none;
-}
-
-.header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 15px;
+* { box-sizing: border-box; }
+body { margin: 0; padding: 25px; background: #f1f3f5; font-family: sans-serif; color: #222; }
+.container { max-width: 750px; margin: 40px auto; padding: 25px; background: white; border-radius: 14px; box-shadow: 0 3px 15px #0001; }
+h1 { margin-top: 0; font-size: 25px; }
+h2 { font-size: 19px; margin: 0 0 14px; }
+textarea { width: 100%; height: 350px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; resize: vertical; font-size: 16px; line-height: 1.6; font-family: sans-serif; }
+#status, #fileStatus { margin-top: 12px; color: #666; font-size: 14px; overflow-wrap: anywhere; }
+input { width: 100%; padding: 12px; margin: 7px 0; border: 1px solid #ccc; border-radius: 7px; font-size: 16px; }
+button { padding: 10px 16px; border: none; border-radius: 7px; background: #2563eb; color: white; font-size: 14px; cursor: pointer; }
+button:hover { background: #1d4ed8; }
+button:disabled { opacity: .55; cursor: wait; }
+#logout { background: #666; }
+.hidden { display: none !important; }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
+.panel { margin-top: 25px; padding-top: 22px; border-top: 1px solid #e5e7eb; }
+.file-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.file-controls input[type=file] { flex: 1; min-width: 190px; margin: 0; padding: 8px; }
+.file-list { list-style: none; padding: 0; margin: 14px 0 0; }
+.file-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #eee; }
+.file-name { min-width: 0; overflow-wrap: anywhere; }
+.file-meta { color: #777; font-size: 12px; margin-top: 4px; }
+.file-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.delete-btn { background: #dc2626; }
+@media (max-width: 520px) {
+  body { padding: 12px; }
+  .container { margin: 15px auto; padding: 18px; }
+  .file-item { align-items: flex-start; flex-direction: column; }
 }
 </style>
 </head>
-
 <body>
-
 <div class="container">
+  <h1>Text Share</h1>
 
-    <h1>Text Share</h1>
+  <div id="loginArea">
+    <h3>ログイン</h3>
+    <input id="email" type="email" placeholder="メールアドレス" autocomplete="username">
+    <input id="password" type="password" placeholder="パスワード" autocomplete="current-password">
+    <button id="login">ログイン</button>
+    <p id="loginStatus"></p>
+  </div>
 
-    <!-- ログイン画面 -->
-    <div id="loginArea">
-        <h3>ログイン</h3>
-
-        <input id="email"
-            type="email"
-            placeholder="メールアドレス">
-
-        <input id="password"
-            type="password"
-            placeholder="パスワード">
-
-        <button id="login">ログイン</button>
-
-        <p id="loginStatus"></p>
+  <div id="editorArea" class="hidden">
+    <div class="header">
+      <span>共有テキスト</span>
+      <button id="logout">ログアウト</button>
     </div>
 
-    <!-- 文章共有画面 -->
-    <div id="editorArea" class="hidden">
+    <textarea id="text" placeholder="ここに文章を入力..."></textarea>
+    <div id="status">接続中...</div>
 
-        <div class="header">
-            <span>共有テキスト</span>
-            <button id="logout">ログアウト</button>
-        </div>
-
-        <textarea id="text"
-            placeholder="ここに文章を入力..."></textarea>
-
-        <div id="status">接続中...</div>
-
-    </div>
-
+    <section class="panel">
+      <h2>ファイル共有</h2>
+      <div class="file-controls">
+        <input id="fileInput" type="file">
+        <button id="uploadButton">アップロード</button>
+        <button id="refreshButton" type="button">更新</button>
+      </div>
+      <div id="fileStatus">ファイル一覧を読み込みます...</div>
+      <ul id="fileList" class="file-list"></ul>
+      <p class="file-meta">1ファイル最大50MB。共有スペース内のファイルは、ログインできるユーザー全員が閲覧・削除できます。</p>
+    </section>
+  </div>
 </div>
 
 <script type="module">
-
-import { initializeApp }
-    from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
 import {
-    getAuth,
-    signInWithEmailAndPassword,
-    onAuthStateChanged,
-    signOut
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-
 import {
-    getDatabase,
-    ref,
-    onValue,
-    set
+  getDatabase, ref, onValue, set
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
-
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Firebase設定
 const firebaseConfig = {
-
-    apiKey: "AIzaSyDsVCvRiIuy0ji_jSA1s-hHO63b5eONsYc",
-
-    authDomain: "text-share-a7de6.firebaseapp.com",
-
-    databaseURL: "https://text-share-a7de6-default-rtdb.asia-southeast1.firebasedatabase.app",
-
-    projectId: "text-share-a7de6",
-
-    appId: "1:756434973756:web:35387a44f9cfd842cc7f39"
-
+  apiKey: "AIzaSyDsVCvRiIuy0ji_jSA1s-hHO63b5eONsYc",
+  authDomain: "text-share-a7de6.firebaseapp.com",
+  databaseURL: "https://text-share-a7de6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "text-share-a7de6",
+  appId: "1:756434973756:web:35387a44f9cfd842cc7f39"
 };
 
+// Supabase設定（公開用Publishable key）
+const supabaseUrl = "https://mhjqgljerfbbnsxcnatw.supabase.co";
+const supabasePublishableKey = "sb_publishable_4uMzzz4ixzKWWufH6AlDLQ_9ASiYvPU";
+const bucketName = "shared-files";
+const maxFileSize = 50 * 1024 * 1024;
 
-// Firebase初期化
 const app = initializeApp(firebaseConfig);
-
 const auth = getAuth(app);
-
 const db = getDatabase(app);
-
-
-// データ保存場所
 const textRef = ref(db, "sharedText");
 
+// FirebaseのIDトークンをSupabase Storageの認証に使用
+const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  accessToken: async () => {
+    return (await auth.currentUser?.getIdToken()) ?? null;
+  }
+});
 
-// HTML要素
-const loginArea = document.getElementById("loginArea");
-const editorArea = document.getElementById("editorArea");
+const $ = (id) => document.getElementById(id);
+const loginArea = $("loginArea");
+const editorArea = $("editorArea");
+const emailInput = $("email");
+const passwordInput = $("password");
+const textarea = $("text");
+const status = $("status");
+const loginStatus = $("loginStatus");
+const fileInput = $("fileInput");
+const fileStatus = $("fileStatus");
+const fileList = $("fileList");
+const uploadButton = $("uploadButton");
+const refreshButton = $("refreshButton");
 
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
-
-const textarea = document.getElementById("text");
-
-const status = document.getElementById("status");
-const loginStatus = document.getElementById("loginStatus");
-
-
-// 同期管理
 let saveTimer = null;
 let unsubscribe = null;
 
-
-// ログイン
-document.getElementById("login").addEventListener("click", async () => {
-
-    loginStatus.textContent = "ログイン中...";
-
-    try {
-
-        await signInWithEmailAndPassword(
-            auth,
-            emailInput.value,
-            passwordInput.value
-        );
-
-        loginStatus.textContent = "";
-
-    } catch (error) {
-
-        loginStatus.textContent = "ログイン失敗: " + error.message;
-
-    }
-
+$("login").addEventListener("click", async () => {
+  loginStatus.textContent = "ログイン中...";
+  try {
+    await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+    loginStatus.textContent = "";
+  } catch (error) {
+    loginStatus.textContent = "ログイン失敗: " + error.message;
+  }
 });
 
-
-// ログアウト
-document.getElementById("logout").addEventListener("click", async () => {
-
-    await signOut(auth);
-
+$("logout").addEventListener("click", async () => {
+  await signOut(auth);
 });
 
+onAuthStateChanged(auth, (user) => {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+  clearTimeout(saveTimer);
+  saveTimer = null;
 
-// ログイン状態監視
-onAuthStateChanged(auth, user => {
+  if (user) {
+    loginArea.classList.add("hidden");
+    editorArea.classList.remove("hidden");
+    status.textContent = "データを読み込み中...";
 
-    if (unsubscribe) {
-        unsubscribe();
-        unsubscribe = null;
-    }
+    unsubscribe = onValue(textRef, (snapshot) => {
+      if (saveTimer !== null) return;
+      const newText = snapshot.val() ?? "";
+      if (textarea.value !== newText) textarea.value = newText;
+      status.textContent = "同期中・最新データを表示しています";
+    }, (error) => {
+      status.textContent = "読み込みエラー: " + error.message;
+    });
 
-    clearTimeout(saveTimer);
-    saveTimer = null;
-
-    if (user) {
-
-        loginArea.classList.add("hidden");
-        editorArea.classList.remove("hidden");
-
-        status.textContent = "データを読み込み中...";
-
-        // データ変更をリアルタイム監視
-        unsubscribe = onValue(textRef, snapshot => {
-
-            // ローカルの入力待ちがあれば上書きしない
-            if (saveTimer !== null) return;
-
-            const data = snapshot.val();
-
-            const newText = data ?? "";
-
-            if (textarea.value !== newText) {
-                textarea.value = newText;
-            }
-
-            status.textContent = "同期中・最新データを表示しています";
-
-        }, error => {
-
-            status.textContent = "読み込みエラー: " + error.message;
-
-        });
-
-    } else {
-
-        loginArea.classList.remove("hidden");
-        editorArea.classList.add("hidden");
-
-        textarea.value = "";
-
-    }
-
+    refreshFiles();
+  } else {
+    loginArea.classList.remove("hidden");
+    editorArea.classList.add("hidden");
+    textarea.value = "";
+    fileList.replaceChildren();
+    fileStatus.textContent = "";
+  }
 });
 
-
-// 入力されたら自動保存
 textarea.addEventListener("input", () => {
-
-    status.textContent = "保存待ち...";
-
-    clearTimeout(saveTimer);
-
-    saveTimer = setTimeout(async () => {
-
-        const content = textarea.value;
-
-        status.textContent = "保存中...";
-
-        try {
-
-            await set(textRef, content);
-
-            status.textContent = "保存完了";
-
-        } catch (error) {
-
-            status.textContent = "保存エラー: " + error.message;
-
-        } finally {
-
-            saveTimer = null;
-
-        }
-
-    }, 400);
-
+  status.textContent = "保存待ち...";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const content = textarea.value;
+    status.textContent = "保存中...";
+    try {
+      await set(textRef, content);
+      status.textContent = "保存完了";
+    } catch (error) {
+      status.textContent = "保存エラー: " + error.message;
+    } finally {
+      saveTimer = null;
+    }
+  }, 400);
 });
 
-</script>
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
+function showFileError(prefix, error) {
+  console.error(prefix, error);
+  fileStatus.textContent = `${prefix}: ${error?.message ?? error}`;
+}
+
+async function refreshFiles() {
+  if (!auth.currentUser) return;
+  fileStatus.textContent = "ファイル一覧を読み込み中...";
+  fileList.replaceChildren();
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .list("", { limit: 100, sortBy: { column: "created_at", order: "desc" } });
+
+  if (error) {
+    showFileError("一覧取得エラー", error);
+    return;
+  }
+
+  const files = (data ?? []).filter(item => item.name && item.id);
+  if (files.length === 0) {
+    fileStatus.textContent = "共有ファイルはまだありません。";
+    return;
+  }
+
+  fileStatus.textContent = `${files.length} 件のファイル`;
+  for (const file of files) {
+    const li = document.createElement("li");
+    li.className = "file-item";
+
+    const info = document.createElement("div");
+    info.className = "file-name";
+    const name = document.createElement("div");
+    name.textContent = file.name;
+    const meta = document.createElement("div");
+    meta.className = "file-meta";
+    meta.textContent = formatBytes(file.metadata?.size) || "サイズ情報なし";
+    info.append(name, meta);
+
+    const actions = document.createElement("div");
+    actions.className = "file-actions";
+
+    const downloadButton = document.createElement("button");
+    downloadButton.textContent = "ダウンロード";
+    downloadButton.addEventListener("click", () => downloadFile(file.name));
+
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = "削除";
+    deleteButton.className = "delete-btn";
+    deleteButton.addEventListener("click", () => deleteFile(file.name));
+
+    actions.append(downloadButton, deleteButton);
+    li.append(info, actions);
+    fileList.append(li);
+  }
+}
+
+async function uploadFile() {
+  const file = fileInput.files?.[0];
+  if (!file) {
+    fileStatus.textContent = "先にファイルを選択してね。";
+    return;
+  }
+  if (file.size > maxFileSize) {
+    fileStatus.textContent = "ファイルサイズが50MBを超えています。";
+    return;
+  }
+  if (!auth.currentUser) {
+    fileStatus.textContent = "ログインしてください。";
+    return;
+  }
+
+  uploadButton.disabled = true;
+  fileStatus.textContent = "アップロード中...";
+  const safeName = file.name.replace(/[\\/]/g, "_").replace(/[^\p{L}\p{N}._() -]/gu, "_");
+  const objectPath = `${Date.now()}_${crypto.randomUUID()}_${safeName}`;
+
+  const { error } = await supabase.storage
+    .from(bucketName)
+    .upload(objectPath, file, { cacheControl: "3600", upsert: false });
+
+  uploadButton.disabled = false;
+  if (error) {
+    showFileError("アップロードエラー", error);
+    return;
+  }
+
+  fileInput.value = "";
+  fileStatus.textContent = "アップロード完了！";
+  await refreshFiles();
+}
+
+async function downloadFile(path) {
+  fileStatus.textContent = "ダウンロード準備中...";
+  const { data, error } = await supabase.storage.from(bucketName).download(path);
+  if (error) {
+    showFileError("ダウンロードエラー", error);
+    return;
+  }
+
+  const url = URL.createObjectURL(data);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = path.replace(/^\d+_[0-9a-f-]+_/, "");
+  document.body.append(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  fileStatus.textContent = "ダウンロードを開始しました。";
+}
+
+async function deleteFile(path) {
+  if (!confirm(`「${path}」を削除する？`)) return;
+  fileStatus.textContent = "削除中...";
+  const { error } = await supabase.storage.from(bucketName).remove([path]);
+  if (error) {
+    showFileError("削除エラー", error);
+    return;
+  }
+  fileStatus.textContent = "削除しました。";
+  await refreshFiles();
+}
+
+uploadButton.addEventListener("click", uploadFile);
+refreshButton.addEventListener("click", refreshFiles);
+</script>
 </body>
 </html>
